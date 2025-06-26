@@ -1,12 +1,14 @@
 package com.tenco.blog.user;
 
 import com.tenco.blog._core.errors.exception.Exception400;
+import com.tenco.blog.utils.Define;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Controller;
+import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 
@@ -15,95 +17,80 @@ import org.springframework.web.bind.annotation.PostMapping;
 public class UserController {
 
     private static final Logger log = LoggerFactory.getLogger(UserController.class);
+    private final UserService userService;
 
-    private final UserRepository userRepository;
-    private final HttpSession httpSession;
-
+    /**
+     * 회원 정보 수정 화면 요청
+     */
     @GetMapping("/user/update-form")
-    public String updateForm(HttpServletRequest request, HttpSession session) {
-
-        log.info("회원 정보 수정 폼 요청");
-
+    public String updateForm(Model model, HttpSession session) {
         User sessionUser = (User) session.getAttribute("sessionUser");
-        request.setAttribute("user", sessionUser);
+        User user = userService.findById(sessionUser.getId());
+        model.addAttribute("user", user);
         return "user/update-form";
     }
 
 
+    /**
+     * 회원 정보 수정 기능 요청
+     */
     @PostMapping("/user/update")
     public String update(UserRequest.UpdateDTO reqDTO,
-                         HttpSession session, HttpServletRequest request) {
-
-        log.info("회원 정보 수정 요청");
-
-        User sessionUser = (User) session.getAttribute("sessionUser");
+                         HttpSession session) {
+        // 1. 인증검사
+        // 2. 유효성 검사
+        // 3. 서비스 계층 -> 회원 정보 수정 기능 위임
+        // 4. 세션 동기화 처리
+        // 5. 리다이렉트 -> 회원 정보 화면 요청(새로운 request)
         reqDTO.validate();
-        User updateUser = userRepository.updateById(sessionUser.getId(), reqDTO);
+        User user = (User) session.getAttribute("sessionUser");
+        User updateUser = userService.updateById(user.getId(), reqDTO);
         session.setAttribute("sessionUser", updateUser);
         return "redirect:/user/update-form";
     }
 
-
+    /**
+     * 회원 가입 화면 요청
+     */
     @GetMapping("/join-form")
     public String joinForm() {
-
-        log.info("회원 가입 폼 요청");
-
         return "user/join-form";
     }
 
-
+    /**
+     * 회원 가입 기능 요청
+     */
     @PostMapping("/join")
-    public String join(UserRequest.JoinDTO joinDTO, HttpServletRequest request) {
-
-        log.info("회원 가입 기능 요청");
-        log.info("사용자 명: {} ", joinDTO.getUsername());
-        log.info("사용자 이메일: {} ", joinDTO.getEmail());
-
+    public String join(UserRequest.JoinDTO joinDTO) {
         joinDTO.validate();
-
-        User exsistUser = userRepository.findByUsername(joinDTO.getUsername());
-        if (exsistUser != null) {
-            throw new Exception400("이미 존재하는 사용자명 입니다" + joinDTO.getUsername());
-        }
-        User user = joinDTO.toEntity();
-        userRepository.save(user);
+        userService.join(joinDTO);
         return "redirect:/login-form";
     }
 
 
+    /**
+     * 로그인 화면 요청
+     */
     @GetMapping("/login-form")
     public String loginForm() {
-
-        log.info("로그인 폼 요청");
-
         return "user/login-form";
     }
 
-
+    /**
+     * 로그인 요청
+     */
     @PostMapping("/login")
-    public String login(UserRequest.LoginDTO loginDTO) {
-
-        log.info("로그인 기능 요청");
-        log.info("사용자 명 : {} ", loginDTO.getUsername());
-
+    public String login(UserRequest.LoginDTO loginDTO, HttpSession session) {
         loginDTO.validate();
-
-        User user = userRepository.findByUsernameAndPassword(loginDTO.getUsername(), loginDTO.getPassword());
-        if (user == null) {
-            throw new Exception400("사용자 명 또는 비밀번호가 일치하지 않습니다.");
-        }
-        httpSession.setAttribute("sessionUser", user);
+        User user = userService.login(loginDTO);
+        session.setAttribute(Define.SESSION_USER, user);
         return "redirect:/";
     }
 
 
     @GetMapping("/logout")
-    public String logout() {
-
-        log.info("로그아웃");
-
-        httpSession.invalidate();
+    public String logout(HttpSession session) {
+        session.invalidate();
         return "redirect:/";
     }
 
